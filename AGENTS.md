@@ -13,38 +13,155 @@ These rules apply in addition to the upstream data contract below. Where they co
 
 ## Git / GitHub 版本管理规则
 
-1. 所有开发都在非 `main` 分支进行，当前开发分支为 `china-v0`。
-2. 每完成一个可独立验证的功能或阶段，必须先运行测试，再创建 Git commit。
-3. 以下属于必须创建 checkpoint 的关键节点：
-   - 原版 `career-ops` 成功本地运行；
-   - 完成架构审计后的基础配置；
-   - 完成 Career Interview；
-   - 完成 Career Profile；
-   - 完成 Job Source Connector；
-   - 完成 Liepin MCP 最小接入；
-   - 完成 Job Evaluation Rubric；
-   - 完成 Recommendation Explanation；
-   - V0 完成；
-   - V1 Alpha 完成；
-   - Tauri 技术验证完成；
-   - V2 Alpha 完成；
-   - 任何数据库 / schema / 核心架构重大修改前后。
-4. 每个关键 checkpoint 在确认测试通过后，必须 push 到我的 GitHub `origin`，不能只保存在本地。
-5. Push 前必须检查：
-   - `git status`；
-   - 当前 branch；
-   - 是否存在 `.env`、API Key、Liepin MCP Key、Token、用户简历、本地数据库或其他敏感文件被 staged；
-   - 测试是否通过。
-6. 禁止使用 `git push --force`，除非我明确授权。
-7. 禁止直接向 `main` push 未验证代码。
-8. 每次 push 后向我汇报：
-   - branch；
-   - commit hash；
-   - commit message；
-   - push 是否成功；
-   - 当前是否有未提交修改。
-9. 如果 GitHub push 因认证、权限、网络或冲突失败，不要绕过问题或创建新的远端仓库，停止并告诉我具体原因。
-10. 在进行大规模重构、高风险修改或不可逆操作之前，先创建并 push 一个稳定 checkpoint。
+This fork uses three checkpoint classes. All Git work happens on a non-`main`
+development branch. The current intended development branch is `china-v0`.
+
+### 1. Minor Checkpoint
+
+A Minor Checkpoint includes:
+
+- small documentation updates;
+- small UI adjustments;
+- refactors that do not change core behavior, data contracts, connector behavior,
+  privacy boundaries, or persistent data; and
+- test-only or configuration-only changes with a narrow and verified impact.
+
+Rules:
+
+1. A Minor Checkpoint may be committed automatically after relevant validation.
+2. It does not require an automatic push.
+3. At minimum run `git diff --check`; run any focused test that covers the
+   changed area when one exists.
+4. A Minor Checkpoint must never include secrets, Tokens, résumés, Career
+   Profiles, interviews, local databases, or other user data.
+5. Never create a Minor Checkpoint directly on `main`.
+
+### 2. Stable Checkpoint
+
+A Stable Checkpoint is a complete, independently verifiable product or
+engineering increment.
+
+Before creating one, all of the following must be true:
+
+1. The relevant tests have passed.
+2. `git status` and the current branch have been checked.
+3. The current branch is not `main`.
+4. The staged diff has been checked for `.env`, API keys, Liepin MCP keys,
+   Tokens, résumés, Career Profiles, interview data, local databases, and
+   other sensitive files.
+5. The working-tree state is understood and reported.
+6. The push is a normal non-force push to the matching development branch on
+   `origin`.
+7. No push is ever sent to `upstream`, and no automatic push is ever sent to
+   `main`.
+
+Unless the user explicitly says “do not push”, a completed Stable Checkpoint
+must be committed and pushed automatically to the current non-`main`
+development branch on `origin`.
+
+After those checks, a Stable Checkpoint must:
+
+1. create a Git commit;
+2. push to the current development branch on `origin`; and
+3. stop and report if the push fails because of authentication, permission,
+   network, rejection, or conflict. Do not retry through a workaround, use
+   force push, or create another remote.
+
+Stable Checkpoints for this project include at least:
+
+- original career-ops successfully running locally;
+- Career Interview complete;
+- Career Profile complete;
+- Manual Job input complete;
+- Liepin MCP connectivity test complete;
+- `LiepinMCPConnector` complete;
+- unified internal `Job` schema complete;
+- Job Evaluation Rubric complete;
+- Recommendation Explanation complete;
+- V0 complete;
+- V1 Alpha complete;
+- Tauri Desktop Spike complete; and
+- V2 Alpha complete.
+
+Validation guidance for the current repository:
+
+- Documentation-only changes: `git diff --check`, plus the focused integrity
+  test when available.
+- Current career-ops system, mode, provider, script, AGENTS, data-contract,
+  or connector changes: run `npm run lint` and
+  `node test-all.mjs --quick` at minimum.
+- Existing full upstream verification before a release-like checkpoint:
+  `node test-all.mjs`, when its execution cost is justified.
+- Future React, Tauri, or FastAPI code: run the test, lint, build, or smoke
+  command introduced with that subsystem. Do not claim a test exists until it
+  has been added and documented.
+
+After a successful Stable Checkpoint, report:
+
+- checkpoint name;
+- branch;
+- commit hash;
+- commit message;
+- test result;
+- push result; and
+- whether the working tree is clean.
+
+### 3. Major Checkpoint
+
+The following are Major Checkpoints. Do not automatically proceed beyond the
+planning or inspection stage: first explain the scope, risk, rollback path,
+test plan, and intended branch/commit strategy, then wait for explicit user
+confirmation.
+
+- major database or schema changes;
+- authentication or authorization;
+- changes to local privacy, data residency, or Token storage;
+- large-scale refactors;
+- deletion of substantial code or data;
+- introducing a major framework;
+- changing the `JobSourceConnector` or internal `Job` interface;
+- introducing a formal integration with a Chinese job platform;
+- merging into `main`; and
+- any force-push operation.
+
+Before any Major Checkpoint, the current branch must have a clean, tested, and
+pushed Stable Checkpoint baseline whenever feasible. If a push is blocked by
+authentication, permission, network, or remote rejection, stop and report the
+exact reason before beginning the Major Checkpoint.
+
+### Validation Reporting Honesty
+
+Never overstate validation.
+
+- If a required or relevant test was not run, report `not run`.
+- If only a smoke test passed, report it as a smoke test; do not claim full
+  verification.
+- Report the exact command run and its result for every Stable Checkpoint.
+- Do not infer coverage from a passing lint command, syntax check, or unrelated
+  test suite.
+
+### Liepin MCP Boundary
+
+A Liepin MCP connectivity test may be a Stable Checkpoint when its defined
+test scope passes and no production integration is introduced.
+
+Any formal production or commercial integration with Liepin remains a Major
+Checkpoint and requires explicit user confirmation. This includes committing
+to platform dependence, storing credentials beyond the confirmed local model,
+shipping the connector to users, automated recommendation/search behavior
+under platform credentials, application actions, or making commercial
+compatibility claims.
+
+### Push Safety Rules
+
+- Automatic pushes are allowed only to the user's `origin`.
+- Never push to `upstream`.
+- Never automatically push to `main`.
+- Never use `git push --force` without explicit user authorization.
+- Before every push, inspect `git status`, current branch, staged paths, and
+  the staged diff for sensitive data.
+- If push fails, stop and report the exact failure. Do not bypass credentials,
+  switch remotes, create another remote, or force push.
 
 ## Origin
 
