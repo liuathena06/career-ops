@@ -1,5 +1,16 @@
 # Career-Ops -- AI Job Search Pipeline
 
+## China V0 Fork Overlay
+
+These rules apply in addition to the upstream data contract below. Where they conflict, protect user data, secrets, and explicit user scope first.
+
+- Optimize for local-first, simple, stable, understandable, and maintainable behavior over feature count or architectural novelty.
+- Do not broaden scope without confirmation. Do not introduce microservices, cloud databases, multi-agent orchestration, multi-model routing, large-scale crawling, or multiple MCP integrations without an explicit decision.
+- Explain high-risk, destructive, irreversible, privacy-sensitive, or externally consequential changes before making them.
+- Never commit, ordinarily log, export by default, or upload résumés, Career Profiles, interviews, preferences, platform credentials, or provider tokens. Real values belong only in ignored local configuration or a future OS secure store.
+- Job sources are replaceable `JobSourceConnector` adapters that transform source data into one internal `Job` schema. Career Interview, Career Profile, Job Evaluation, and Recommendation Explanation must not depend on source-specific data structures.
+- Do not hard-code Liepin MCP into core logic. It is an experimental personal-development connector. Manual JD/URL input must remain a complete fallback when any connector is unavailable or unauthorized.
+
 ## Origin
 
 Built and used by [santifer](https://santifer.io) to evaluate 740+ offers, generate 100+ tailored CVs, and land a Head of Applied AI role. The archetypes, scoring, and negotiation scripts reflect that search; his portfolio is also open source: [cv-santiago](https://github.com/santifer/cv-santiago).

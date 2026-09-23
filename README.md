@@ -608,6 +608,10 @@ brand are governed by the [Trademark Policy](TRADEMARK.md), permissive
 for community use, reserved for commercial product naming and
 endorsement.
 
+## China V0 fork direction
+
+This fork explores a local-first AI Career Agent for Chinese professionals. Its V0 work adds Career Interview, recruiter-grade Job Evaluation, and Recommendation Explanation while preserving the upstream project's license, attribution, and user-data protections. Current planning documents are [PRODUCT.md](PRODUCT.md), [TECH_SPEC.md](TECH_SPEC.md), [PRIVACY.md](PRIVACY.md), and [ROADMAP.md](ROADMAP.md). This is an experimental fork; no Liepin MCP, Tauri, Chinese localization, or rubric change has been implemented.
+
 ## Star history
 
 <p align="center">
