@@ -11,6 +11,41 @@ These rules apply in addition to the upstream data contract below. Where they co
 - Job sources are replaceable `JobSourceConnector` adapters that transform source data into one internal `Job` schema. Career Interview, Career Profile, Job Evaluation, and Recommendation Explanation must not depend on source-specific data structures.
 - Do not hard-code Liepin MCP into core logic. It is an experimental personal-development connector. Manual JD/URL input must remain a complete fallback when any connector is unavailable or unauthorized.
 
+## Git / GitHub 版本管理规则
+
+1. 所有开发都在非 `main` 分支进行，当前开发分支为 `china-v0`。
+2. 每完成一个可独立验证的功能或阶段，必须先运行测试，再创建 Git commit。
+3. 以下属于必须创建 checkpoint 的关键节点：
+   - 原版 `career-ops` 成功本地运行；
+   - 完成架构审计后的基础配置；
+   - 完成 Career Interview；
+   - 完成 Career Profile；
+   - 完成 Job Source Connector；
+   - 完成 Liepin MCP 最小接入；
+   - 完成 Job Evaluation Rubric；
+   - 完成 Recommendation Explanation；
+   - V0 完成；
+   - V1 Alpha 完成；
+   - Tauri 技术验证完成；
+   - V2 Alpha 完成；
+   - 任何数据库 / schema / 核心架构重大修改前后。
+4. 每个关键 checkpoint 在确认测试通过后，必须 push 到我的 GitHub `origin`，不能只保存在本地。
+5. Push 前必须检查：
+   - `git status`；
+   - 当前 branch；
+   - 是否存在 `.env`、API Key、Liepin MCP Key、Token、用户简历、本地数据库或其他敏感文件被 staged；
+   - 测试是否通过。
+6. 禁止使用 `git push --force`，除非我明确授权。
+7. 禁止直接向 `main` push 未验证代码。
+8. 每次 push 后向我汇报：
+   - branch；
+   - commit hash；
+   - commit message；
+   - push 是否成功；
+   - 当前是否有未提交修改。
+9. 如果 GitHub push 因认证、权限、网络或冲突失败，不要绕过问题或创建新的远端仓库，停止并告诉我具体原因。
+10. 在进行大规模重构、高风险修改或不可逆操作之前，先创建并 push 一个稳定 checkpoint。
+
 ## Origin
 
 Built and used by [santifer](https://santifer.io) to evaluate 740+ offers, generate 100+ tailored CVs, and land a Head of Applied AI role. The archetypes, scoring, and negotiation scripts reflect that search; his portfolio is also open source: [cv-santiago](https://github.com/santifer/cv-santiago).
