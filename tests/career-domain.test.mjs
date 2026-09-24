@@ -87,6 +87,8 @@ const inference = {
   confidence: InferenceConfidence.MEDIUM,
   rationale: '基于其对商业化和跨团队推进范围的自述。',
   needsConfirmation: true,
+  status: 'pending',
+  provenance: { analyzerId: 'mock-career-profile-analyzer', analyzerVersion: 'v0' },
   evidenceRefs: [{ sourceType: 'interview_turn', sourceId: 'turn-direction' }],
 };
 
@@ -96,7 +98,13 @@ function draft({ stated = {}, inferences = [inference] } = {}) {
     interview: interview(),
     stated: {
       careerDirection: [directionEntry],
-      hardConstraints: [hardConstraint],
+      hardConstraints: {
+        locations: [],
+        workMode: [],
+        availability: [],
+        dealBreakers: [hardConstraint],
+        compensation: { target: null, acceptable: null, minimum: null },
+      },
       ...stated,
     },
     inferences,
@@ -115,9 +123,17 @@ test('user wording remains in stated data and is never overwritten by an AI infe
 
 test('hard constraints can only originate from confirmed stated data', () => {
   const unconfirmed = { ...hardConstraint, confirmed: false };
-  const profile = confirmCareerProfile(draft({ stated: { hardConstraints: [unconfirmed] } }), { now: confirmedAt });
+  const profile = confirmCareerProfile(draft({ stated: {
+      hardConstraints: {
+        locations: [],
+        workMode: [],
+        availability: [],
+        dealBreakers: [unconfirmed],
+        compensation: { target: null, acceptable: null, minimum: null },
+      },
+    } }), { now: confirmedAt });
   const input = createRecruiterRubricCandidateInput(profile);
-  assert.deepEqual(input.hardConstraints, []);
+  assert.deepEqual(input.hardConstraints.dealBreakers, []);
   assert.equal(input.inferredSignals[0].kind, 'seniority_hypothesis');
 });
 
@@ -132,6 +148,19 @@ test('inferences accept low, medium, and high confidence', () => {
   for (const confidence of Object.values(InferenceConfidence)) {
     const profile = draft({ inferences: [{ ...inference, id: `inference-${confidence}`, confidence }] });
     assert.equal(profile.inferences[0].confidence, confidence);
+  }
+});
+
+test('inference lifecycle supports pending, confirmed, and rejected states', () => {
+  for (const [status, needsConfirmation] of [
+    ['pending', true],
+    ['confirmed', false],
+    ['rejected', false],
+  ]) {
+    const profile = draft({
+      inferences: [{ ...inference, id: `inference-${status}`, status, needsConfirmation }],
+    });
+    assert.equal(profile.inferences[0].status, status);
   }
 });
 
@@ -182,10 +211,10 @@ test('skipped and needs_followup turns cannot become confirmed profile facts', (
 
 test('rubric projection excludes hard constraints until the profile and entry are confirmed', () => {
   const profile = draft();
-  assert.deepEqual(createRecruiterRubricCandidateInput(profile).hardConstraints, []);
+  assert.deepEqual(createRecruiterRubricCandidateInput(profile).hardConstraints.dealBreakers, []);
 
   const confirmed = confirmCareerProfile(profile, { now: confirmedAt });
-  assert.deepEqual(createRecruiterRubricCandidateInput(confirmed).hardConstraints, [hardConstraint]);
+  assert.deepEqual(createRecruiterRubricCandidateInput(confirmed).hardConstraints.dealBreakers, [hardConstraint]);
 });
 
 test('profile version increases again after stale profile is re-confirmed', () => {
