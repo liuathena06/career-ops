@@ -11,6 +11,53 @@ These rules apply in addition to the upstream data contract below. Where they co
 - Job sources are replaceable `JobSourceConnector` adapters that transform source data into one internal `Job` schema. Career Interview, Career Profile, Job Evaluation, and Recommendation Explanation must not depend on source-specific data structures.
 - Do not hard-code Liepin MCP into core logic. It is an experimental personal-development connector. Manual JD/URL input must remain a complete fallback when any connector is unavailable or unauthorized.
 
+## Communication Style
+
+- Keep responses concise and decision-oriented.
+- Default to a short conclusion first, followed only by essential details.
+- Do not repeat schemas, architecture, requirements, or prior decisions unless they changed.
+- Do not restate the user's prompt.
+- For completed work, report only:
+  1. conclusion / PASS-FAIL status,
+  2. files changed,
+  3. tests,
+  4. blockers or remaining work.
+- For design proposals, prefer a compact table or short bullets over long explanations.
+- Explain technical concepts in plain language because the Founder is a headhunter, not a software engineer.
+- Expand only when explicitly asked for details.
+- When communicating with the Founder, prioritize product meaning over implementation detail. Explain what a technical decision means for the Career Agent product before discussing code-level details.
+
+## Founder Communication Rules
+
+The Founder is not a software engineer. Keep all replies concise and product-oriented.
+
+Default response format:
+1. One-sentence conclusion.
+2. What changed.
+3. Test/result status.
+4. Blockers or next step.
+
+Do NOT paste code, schemas, type definitions, interfaces, JSON structures, or long implementation details unless the Founder explicitly asks to see them.
+
+Do NOT repeat previously approved architecture or design.
+
+When discussing a technical change, explain what it means for the product in plain language first.
+
+For design reviews:
+- Use short bullets.
+- Focus on decisions the Founder needs to make.
+- Avoid implementation syntax.
+- Maximum default length: about 10–15 lines.
+
+For implementation completion:
+- PASS / PARTIAL / BLOCKED
+- Files changed
+- Tests
+- Remaining work
+- No code dump
+
+Expand only when explicitly asked for technical detail.
+
 ## Git / GitHub 版本管理规则
 
 This fork uses three checkpoint classes. All Git work happens on a non-`main`
