@@ -25,3 +25,11 @@ test('Founder search intent is derived only from confirmed Profile facts', () =>
   const { profile } = createFounderConfirmedProfile({ answers, id: 'test', now: '2026-09-25T00:00:00.000Z' });
   assert.deepEqual(profileSearchIntent(profile), { jobName: 'AI产品经理', location: '上海' });
 });
+
+
+test('Founder location input separates Chinese list punctuation into independent hard constraints', () => {
+  const multiCityAnswers = structuredClone(answers);
+  multiCityAnswers['career-constraints-v0'] = { ...multiCityAnswers['career-constraints-v0'], locations: '北京、上海' };
+  const { profile } = createFounderConfirmedProfile({ answers: multiCityAnswers, id: 'multi-city', now: '2026-09-26T00:00:00.000Z' });
+  assert.deepEqual(profile.stated.hardConstraints.locations.map((entry) => entry.value), ['北京', '上海']);
+});

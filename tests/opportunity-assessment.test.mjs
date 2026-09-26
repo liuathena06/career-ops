@@ -112,3 +112,12 @@ test("an assessment requires a confirmed profile but keeps sparse discovery card
   assert.equal(result.dimensions.capabilityPlausibility.judgment, OpportunityRelevance.UNKNOWN);
   assert.equal(result.shouldShow, true);
 });
+
+
+test('a Beijing district card satisfies a confirmed Beijing location constraint', () => {
+  const cityProfile = structuredClone(profile());
+  cityProfile.stated.hardConstraints.locations[0].value = '北京';
+  const result = assessOpportunity({ profile: cityProfile, job: job({ listing: { location: '北京-朝阳' } }) });
+  assert.equal(result.hardFilter.outcome, 'pass');
+  assert.ok(!result.hardFilter.reasons.includes('LOCATION_CONFLICT'));
+});

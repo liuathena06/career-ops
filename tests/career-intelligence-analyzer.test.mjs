@@ -30,3 +30,12 @@ test('provider failures use the deterministic fallback without exposing provider
   const result = await analyzeCareerIntelligence({ analyzer: failed, fallbackAnalyzer: createMockCareerIntelligenceAnalyzer(), interview, profile });
   assert.equal(result.usedFallback, true); assert.equal(result.analyzer.id, 'mock-ai-career-intelligence');
 });
+
+
+test('provider fallback reports only a sanitized failure category', async () => {
+  const { interview, profile } = fixture();
+  const failed = { id: 'failed-provider', version: 'v0', async analyze() { throw new Error('internal provider failure detail'); } };
+  const result = await analyzeCareerIntelligence({ analyzer: failed, fallbackAnalyzer: createMockCareerIntelligenceAnalyzer(), interview, profile });
+  assert.equal(result.providerFailure, 'Qwen analysis failed validation');
+  assert.ok(!result.providerFailure.includes('internal'));
+});
