@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import 'dotenv/config';
 /** Synthetic-only Bailian smoke test. It never sends a real resume or interview. */
 import { createFounderConfirmedProfile } from '../lib/founder-career-flow.mjs';
 import { analyzeCareerIntelligence } from '../lib/career-intelligence-analyzer.mjs';

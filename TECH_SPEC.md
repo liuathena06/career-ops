@@ -11,6 +11,8 @@
 
 ## Pending validation — not current implementation commitments
 
+- Web/PWA-first is the current product-validation and early-commercialization direction. Formal Web/PWA deployment and Tauri/Desktop packaging are both out of scope until explicitly started; their future credential/connectivity model must not reshape the core domain.
+
 - `career-ops` may inform evaluation workflow, data ownership, evidence-based reports, and normalized job-source design. It will not be mechanically copied or treated as the product runtime.
 - OpenWorker may inform desktop-shell and local-sidecar lifecycle thinking.
 - Tauri 2 + React + local FastAPI is a V2 technical hypothesis that needs validation. It is not being started on Day 1 and is not yet an adopted production architecture.
