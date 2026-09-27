@@ -33,3 +33,12 @@ test('Founder location input separates Chinese list punctuation into independent
   const { profile } = createFounderConfirmedProfile({ answers: multiCityAnswers, id: 'multi-city', now: '2026-09-26T00:00:00.000Z' });
   assert.deepEqual(profile.stated.hardConstraints.locations.map((entry) => entry.value), ['北京', '上海']);
 });
+
+test('Founder location input recognizes common multi-city separators', () => {
+  for (const value of ['北京，上海', '北京、上海', '北京 上海', '北京,上海', '北京 / 上海']) {
+    const multiCityAnswers = structuredClone(answers);
+    multiCityAnswers['career-constraints-v0'].locations = value;
+    const { profile } = createFounderConfirmedProfile({ answers: multiCityAnswers, id: 'cities', now: '2026-09-26T00:00:00.000Z' });
+    assert.deepEqual(profile.stated.hardConstraints.locations.map((entry) => entry.value), ['北京', '上海'], value);
+  }
+});

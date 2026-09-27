@@ -19,6 +19,8 @@ import { resolveLiepinCli } from './lib/founder-liepin-cli-path.mjs';
 import { sanitizeLiepinCliStderr } from './lib/founder-liepin-stderr.mjs';
 import { summarizeFounderFlow } from './lib/founder-flow-diagnostics.mjs';
 import { extractFounderResumeText } from './lib/founder-resume-text.mjs';
+import { assessJobCareerCoherence } from './lib/career-coherence-v0.mjs';
+import { aggregateRankedCompanies } from './lib/founder-company-aggregation.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.FOUNDER_LIEPIN_PORT ?? 3210);
@@ -54,7 +56,7 @@ interview.addEventListener("input",updateBuildState);interview.addEventListener(
 function answers(){const out={};for(const q of questions){out[q.questionId]={raw:interview.elements['raw:'+q.questionId].value};for(const [name] of (extras[q.questionId]||[]))out[q.questionId][name]=interview.elements[name+':'+q.questionId].value}return out}
 document.querySelector('#build').addEventListener('click',async()=>{if(resumeDiagnostic.parse!=="success"){profileStatus.className='status error';profileStatus.textContent='请先完成本机简历解析。';return}if(!interview.reportValidity())return;profileStatus.className='status';profileStatus.textContent='正在生成已确认 Profile 与职业摘要…';try{const r=await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answers:answers(),resumeText:resumeTextInput.value})});const data=await r.json();if(!r.ok)throw new Error(data.error||'生成失败');profile=data.profile;intelligence=data.intelligence;searchStrategy=data.searchStrategy;renderFounderReview({profile,intelligence,searchStrategy,intelligenceRun:data.intelligenceRun});reviewStep.classList.remove('hidden');const directions=(searchStrategy?.searches||[]).map((item)=>item.kind+': '+item.jobName).join(' | ');const aiSource=qwenCredentialAvailable?(data.intelligenceRun?.usedFallback?'local mock fallback':data.intelligenceRun?.analyzer||'local mock'):'Qwen credential missing';profileStatus.className='status success';profileStatus.textContent='Confirmed Profile 已生成。\\nAI source: '+aiSource+'\\nCareer thesis: '+(intelligence?.careerThesis?.text||'—')+'\\nSearch directions: '+directions;searchStep.classList.remove('hidden')}catch(e){profileStatus.className='status error';profileStatus.textContent=e instanceof Error?e.message:'生成失败'}});
 const labels=[['location','Location'],['salary','Salary'],['education','Education'],['workYears','Work Years'],['industry','Industry'],['financingStage','Financing Stage'],['companySize','Company Size']];
-function show(cards){results.replaceChildren();for(const card of cards){const box=document.createElement('article');box.className='card';const title=document.createElement('h2');title.textContent=card.jobName||'—';const company=document.createElement('p');company.className='company';company.textContent=card.company||'—';box.append(title,company);const tag=document.createElement('span');tag.className='tag';tag.textContent=card.recommendation==='apply'?'Apply':'Explore';box.append(tag);const rank=document.createElement('span');rank.className='tag';rank.textContent='Rank #'+(card.rankPosition||'—')+' · '+(card.rankingConfidence||'unknown');box.append(rank);for(const [key,label] of labels){const row=document.createElement('p');row.className='meta';row.textContent=label+': '+(card[key]||'—');box.append(row)}for(const unknown of card.unknowns||[]){const item=document.createElement('span');item.className='tag';item.textContent='Unknown: '+unknown;box.append(item)}if(card.jobDetailUrl){const a=document.createElement('a');a.className='link';a.href=card.jobDetailUrl;a.target='_blank';a.rel='noreferrer';a.textContent='Job Detail URL';box.append(a)}results.append(box)}}
+function show(companies){results.replaceChildren();for(const companyCard of companies){const box=document.createElement('article');box.className='card';const company=document.createElement('h2');company.textContent=companyCard.company;box.append(company);for(const card of companyCard.jobs||[]){const role=document.createElement('section');role.className='question';const title=document.createElement('h3');title.textContent=card.jobName||'—';role.append(title);const tag=document.createElement('span');tag.className='tag';tag.textContent=card.recommendation==='apply'?'Apply':'Explore';role.append(tag);for(const [key,label] of labels){const row=document.createElement('p');row.className='meta';row.textContent=label+': '+(card[key]||'—');role.append(row)}if(card.jobDetailUrl){const a=document.createElement('a');a.className='link';a.href=card.jobDetailUrl;a.target='_blank';a.rel='noreferrer';a.textContent='Job Detail URL';role.append(a)}box.append(role)}results.append(box)}}
 document.querySelector("#search").addEventListener("click",async()=>{if(!profile||!searchStrategy)return;results.replaceChildren();searchStatus.className="status";searchStatus.textContent="正在按多个职业方向搜索与筛选真实岗位…";document.querySelector("#search").disabled=true;try{const r=await fetch("/api/recommendations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,searchStrategy,topN:10})});const data=await r.json();if(!r.ok)throw new Error(data.error||"搜索失败");show(data.cards||[]);searchStatus.textContent=flowSummary(data)}catch(e){searchStatus.className="status error";searchStatus.textContent=e instanceof Error?e.message:"搜索失败"}finally{document.querySelector("#search").disabled=false}});
 function flowSummary(data){const f=data.flowDiagnostics;if(!f)return "诊断摘要不可用。";const reasons=f.opportunityAssessment.primaryHiddenReasons.map((item)=>item.reason+":"+item.count).join(", ")||"none";return ["Resume: upload="+resumeDiagnostic.upload+", type="+resumeDiagnostic.fileType+", parse="+resumeDiagnostic.parse+", language="+resumeDiagnostic.language+", characters="+resumeDiagnostic.characters,"Profile: confirmed="+f.profile.confirmed+", direction="+f.profile.careerDirection+", location="+f.profile.location+", capability="+f.profile.capabilityEvidence+", minimum compensation="+f.profile.compensationMinimum,"Search directions: "+f.searchCriteria.jobName+", Location="+(f.searchCriteria.location||"empty")+", count="+f.searchCriteria.directionCount,"Liepin: called="+f.liepinSearch.called+", merged results="+f.liepinSearch.resultCount,"Job mapping: mapped="+f.jobMapping.mappedJobs+", skipped="+f.jobMapping.skippedJobs,"Assessment: total="+f.opportunityAssessment.assessedJobs+", hard filtered="+f.opportunityAssessment.hardFiltered+", shouldShow="+f.opportunityAssessment.shouldShow+", shouldHide="+f.opportunityAssessment.shouldHide,"Primary hidden reasons: "+reasons,"Hard filter breakdown: location="+(f.opportunityAssessment.hardFilterBreakdown?.locationConflict||0)+", minimum compensation="+(f.opportunityAssessment.hardFilterBreakdown?.minimumCompensationConflict||0)+", deal breaker="+(f.opportunityAssessment.hardFilterBreakdown?.dealBreakerConflict||0),"Filtered examples: "+((f.opportunityAssessment.filteredExamples||[]).map((item)=>item.jobLocation+" → "+(item.candidateLocations||[]).join("/")+" → "+(item.filterReasons||[]).join(",")).join(" | ")||"none"),"Ranking: entered="+f.ranking.entered+", Top N="+f.ranking.topN].join("\\n")}
 </script></body></html>`;
@@ -122,7 +124,7 @@ async function recommendations(profile, searchStrategy, topN) {
   diagnostics.profileSearchCriteriaGenerated = true;
   if (!diagnostics.liepinCliFound) throw failSearch(diagnostics, "未找到本机 liepin-cli。");
   const cardsByKey = new Map();
-  for (const intent of searches.slice(0, 4)) {
+  for (const intent of searches.slice(0, 12)) {
     const payload = await runSearch(liepinSearchArgs(intent), diagnostics);
     if (payload?.code !== 0) throw failSearch(diagnostics, "Liepin 未接受本次搜索。");
     let currentCards;
@@ -143,22 +145,27 @@ async function recommendations(profile, searchStrategy, topN) {
       source: { kind: "liepin_cli" },
       listing: { title: card.jobName, companyName: card.company, location: card.location, salary: card.salary },
     });
-    const assessment = assessOpportunity({ profile, job });
+    const assessed = assessOpportunity({ profile, job });
+    const continuity = assessJobCareerCoherence({ profile, card });
+    const assessment = continuity.status === 'discontinuous' && assessed.hardFilter.outcome === 'pass'
+      ? { ...assessed, shouldShow: false, recommendation: 'low_priority', careerCoherenceReason: continuity.reason }
+      : assessed;
     byId.set(job.id, { ...card, recommendation: assessment.recommendation, unknowns: assessment.unknowns });
     allAssessments.push(assessment);
     if (assessment.shouldShow) showableAssessments.push(assessment);
   }
-  const ranked = rankOpportunities(showableAssessments).slice(0, topN);
+  const ranked = rankOpportunities(showableAssessments);
+  const companyCards = aggregateRankedCompanies({ ranked, cardsByJobId: byId, topN });
   const candidateLocations = confirmedValues(profile.stated?.hardConstraints?.locations);
   const filteredExamples = allAssessments.filter((assessment) => assessment.hardFilter?.outcome === 'filtered_out').slice(0, 3).map((assessment) => {
     const card = byId.get(assessment.jobId) ?? {};
     return { jobLocation: card.location || '未披露', candidateLocations, filterReasons: assessment.hardFilter.reasons ?? [] };
   });
   return {
-    cards: ranked.map((item, index) => ({ ...byId.get(item.jobId), rankPosition: index + 1, rankingConfidence: item.rankingConfidence })), diagnostics,
+    cards: companyCards, diagnostics,
     flowDiagnostics: summarizeFounderFlow({
       profile, intents: searches, liepinResultCount: cards.length, mappedJobs: allAssessments.length,
-      skippedJobs: cards.length - allAssessments.length, assessments: allAssessments, ranked, filteredExamples,
+      skippedJobs: cards.length - allAssessments.length, assessments: allAssessments, ranked, displayedCompanies: companyCards.length, filteredExamples,
     }),
   };
 }

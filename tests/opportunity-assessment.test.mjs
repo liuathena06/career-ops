@@ -121,3 +121,10 @@ test('a Beijing district card satisfies a confirmed Beijing location constraint'
   assert.equal(result.hardFilter.outcome, 'pass');
   assert.ok(!result.hardFilter.reasons.includes('LOCATION_CONFLICT'));
 });
+
+test('a legacy compound confirmed location is split before hard filtering', () => {
+  const cityProfile = structuredClone(profile());
+  cityProfile.stated.hardConstraints.locations[0].value = '北京 / 上海';
+  const result = assessOpportunity({ profile: cityProfile, job: job({ listing: { location: '北京-朝阳' } }) });
+  assert.equal(result.hardFilter.outcome, 'pass');
+});

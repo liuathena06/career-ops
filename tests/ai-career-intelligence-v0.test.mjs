@@ -24,12 +24,20 @@ test('mock intelligence keeps stated profile unchanged and marks inferred direct
   assert.ok(summary.needsConfirmation.every((item) => item.status === 'pending' && item.needsConfirmation));
 });
 
-test('search strategy issues direct, adjacent, and stretch probes while retaining confirmed location', () => {
+test('search strategy keeps confirmed location and excludes stretch without transferable-capability support', () => {
   const { interview, profile } = createFounderConfirmedProfile({ answers, id: 'strategy', now: '2026-09-26T00:00:00.000Z' });
   const intelligence = buildAiCareerProfileSummary({ interview, profile });
   const strategy = createOpportunitySearchStrategy({ profile, intelligence });
-  assert.deepEqual(strategy.searches.map((item) => item.kind), ['direct', 'adjacent', 'stretch']);
+  assert.deepEqual(strategy.searches.map((item) => item.kind), ['direct', 'adjacent']);
   assert.ok(strategy.searches.every((item) => item.location === '上海'));
   assert.equal(strategy.searches[0].explorationOnly, false);
   assert.ok(strategy.searches.slice(1).every((item) => item.explorationOnly));
+});
+
+test('search strategy expands each coherent direction across confirmed cities', () => {
+  const multiCity = structuredClone(answers);
+  multiCity['career-constraints-v0'].locations = '北京，上海';
+  const { interview, profile } = createFounderConfirmedProfile({ answers: multiCity, id: 'cities', now: '2026-09-26T00:00:00.000Z' });
+  const strategy = createOpportunitySearchStrategy({ profile, intelligence: buildAiCareerProfileSummary({ interview, profile }) });
+  assert.deepEqual(strategy.searches.filter((item) => item.kind === 'direct').map((item) => item.location), ['北京', '上海']);
 });
