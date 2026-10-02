@@ -70,7 +70,8 @@
     "serve:dashboard": "cd dashboard && go run .",
     "postinstall": "npx playwright install chromium --with-deps || npx playwright install chromium --with-deps",
     "manifesto": "node manifesto.mjs",
-    "smoke:qwen": "node scripts/qwen-career-intelligence-smoke.mjs"
+    "smoke:qwen": "node scripts/qwen-career-intelligence-smoke.mjs",
+    "smoke:career-knowledge": "node scripts/career-knowledge-smoke.mjs"
   },
   "keywords": [
     "ai",

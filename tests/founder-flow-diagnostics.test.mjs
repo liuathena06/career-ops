@@ -10,7 +10,7 @@ const profile = {
   },
 };
 
-test('flow summary reports sparse-card unknowns without treating them as a hard filter', () => {
+test('flow summary does not report sparse-card unknowns as hidden reasons', () => {
   const summary = summarizeFounderFlow({
     profile, intent: { jobName: '产品经理', location: '上海' }, liepinResultCount: 2, mappedJobs: 2, skippedJobs: 0, ranked: [],
     assessments: [{
@@ -23,7 +23,7 @@ test('flow summary reports sparse-card unknowns without treating them as a hard 
   assert.equal(summary.opportunityAssessment.shouldShow, 0);
   assert.equal(summary.opportunityAssessment.hardFiltered, 0);
   assert.equal(summary.ranking.entered, false);
-  assert.ok(summary.opportunityAssessment.primaryHiddenReasons.some((item) => item.reason === 'career direction weak'));
+  assert.deepEqual(summary.opportunityAssessment.primaryHiddenReasons, [{ reason: 'career direction conflict', count: 1 }]);
 });
 
 

@@ -12,6 +12,17 @@ These rules apply in addition to the upstream data contract below. Where they co
 - Do not hard-code Liepin MCP into core logic. It is an experimental personal-development connector. Manual JD/URL input must remain a complete fallback when any connector is unavailable or unauthorized.
 - Product delivery is Web/PWA-first for validation and early commercialization. Do not start Tauri/Desktop packaging or a Web/PWA platform rewrite unless explicitly requested. Preserve desktop/local-first compatibility and keep Career, AI, Job Connector, Opportunity, Ranking, and Recommendation modules frontend-agnostic.
 
+## Career Recommendation Knowledge V0
+
+- `lib/career-knowledge/` is public system knowledge only: Founder Rulebook / Policy, stable occupation samples, and a separate dynamic-market bucket (empty in V0). Never place candidate facts or credentials there.
+- `createOpportunitySearchStrategy()` reads this local layer and returns provenance-backed `knowledgeContext`. Exact title references and provisional Chinese aliases preserve multiple possible mappings. Uncovered titles stay `unknown`; the original search remains available.
+- Official occupation skills and tasks are context, never proof of candidate capability or the requirements of a particular Job. Discovery has no JD; do not fill its missing facts from a taxonomy. Adjacent occupations remain reviewable proposals and do not automatically trigger searches.
+- Search Direction belongs only to Search Strategy. Discovery uses `Upside Signal`; formal `Career Upside` requires sufficient detail evidence. `lib/career-knowledge/rule-execution.mjs` applies active Founder rules to search hypotheses and card assessments; opportunity ranking reads the same policy. Rules without two-sided evidence remain `unknown`.
+- Policy dimension weights and 75/60 thresholds are configurable experiments; scoring is disabled in this layer. Unknown is never zero or mismatch; hard-constraint failure cannot be offset. No external numeric ratings, education, salary or qualification requirements are imported into the stable samples.
+- Every knowledge record carries source, snapshot/rule version, provenance, allowed stages and China boundary. Snapshot dates and upstream catalog versions are different: current official responses did not echo their release version, so records explicitly mark the upstream release as unverified. Chinese aliases are local curation, not official translations.
+- Samples cover two O*NET and two ESCO occupations. The supplied Chinese GitHub repository is registered as a deferred third-party transcription of a 2022 consultation draft, not an official final-release source. No Chinese data or live market observations are imported yet.
+- Validate with `node --test tests/career-knowledge.test.mjs tests/founder-rule-execution.test.mjs`, `npm run smoke:career-knowledge`, `npm run lint`, and `node test-all.mjs --quick`. The smoke uses real official occupations and a clearly synthetic Profile; it performs no external searches or provider calls.
+
 ## Communication Style
 
 - Keep responses concise and decision-oriented.

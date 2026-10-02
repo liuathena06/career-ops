@@ -19,8 +19,9 @@ import { resolveLiepinCli } from './lib/founder-liepin-cli-path.mjs';
 import { sanitizeLiepinCliStderr } from './lib/founder-liepin-stderr.mjs';
 import { summarizeFounderFlow } from './lib/founder-flow-diagnostics.mjs';
 import { extractFounderResumeText } from './lib/founder-resume-text.mjs';
-import { assessJobCareerCoherence } from './lib/career-coherence-v0.mjs';
 import { aggregateRankedCompanies } from './lib/founder-company-aggregation.mjs';
+import { runControlledLiepinSearches } from './lib/founder-liepin-batch-search.mjs';
+import { stageClock, elapsedMs } from './lib/founder-stage-timing.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.FOUNDER_LIEPIN_PORT ?? 3210);
@@ -36,7 +37,7 @@ body{max-width:960px;margin:32px auto;padding:0 20px;font:16px/1.55 -apple-syste
 <section class="step"><h2>2. Career Interview</h2><p class="hint">请完成八问。职业方向中的“目标职位名称”会用于搜索，不需要另外填写 Job Name 或 Location。</p><form id="interview"></form><button id="build" type="button" disabled>Generate Confirmed Profile</button><p id="profileStatus" class="status"></p></section>
 <section id="reviewStep" class="step hidden"><h2>3. Founder Intelligence Review</h2><p class="hint">Confirmed Profile 的用户原话与 AI inference 分开显示；不保存。</p><div id="reviewContent"></div></section><section id="searchStep" class="step hidden"><h2>4. Recommended Jobs</h2><p class="hint">将按 direct、adjacent、stretch 三条探索方向分别执行只读 Liepin 搜索，再合并去重。搜索较慢是当前 V0 已知问题。</p><button id="search" type="button">Search Recommended Jobs</button><p id="searchStatus" class="status"></p><main id="results" class="results"></main></section>
 <script>
-const questions=${QUESTIONS}; const qwenCredentialAvailable=${JSON.stringify(QWEN_CREDENTIAL_AVAILABLE)}; const interview=document.querySelector('#interview'),profileStatus=document.querySelector('#profileStatus'),searchStep=document.querySelector('#searchStep'),searchStatus=document.querySelector('#searchStatus'),results=document.querySelector('#results'),resumeTextInput=document.querySelector('#resumeText'),buildButton=document.querySelector('#build'); let profile=null,intelligence=null,searchStrategy=null; let resumeDiagnostic={upload:'not_read',fileType:'unknown',parse:'not_started',language:'unknown',characters:0};
+const questions=${QUESTIONS}; const qwenCredentialAvailable=${JSON.stringify(QWEN_CREDENTIAL_AVAILABLE)}; const interview=document.querySelector('#interview'),profileStatus=document.querySelector('#profileStatus'),searchStep=document.querySelector('#searchStep'),searchStatus=document.querySelector('#searchStatus'),results=document.querySelector('#results'),resumeTextInput=document.querySelector('#resumeText'),buildButton=document.querySelector('#build'); let profile=null,intelligence=null,searchStrategy=null,stageTimings={}; let resumeDiagnostic={upload:'not_read',fileType:'unknown',parse:'not_started',language:'unknown',characters:0};
 const reviewStep=document.querySelector('#reviewStep'),reviewContent=document.querySelector('#reviewContent');
 function values(entries){return (entries||[]).filter((item)=>item&&item.confirmed&&String(item.value||'').trim()).map((item)=>String(item.value).trim())}
 function reviewList(title,items){const block=document.createElement('section');const heading=document.createElement('h3');heading.textContent=title;block.append(heading);const list=document.createElement('ul');for(const item of items.filter(Boolean)){const row=document.createElement('li');row.textContent=item;list.append(row)}if(!list.children.length){const row=document.createElement('li');row.textContent='—';list.append(row)}block.append(list);reviewContent.append(block)}
@@ -51,13 +52,13 @@ for(const q of questions){const box=document.createElement('div');box.className=
 function updateBuildState(){buildButton.disabled=!(resumeDiagnostic.parse==="success"&&interview.checkValidity())}
 function resumeStatusText(result){if(result.status==="success")return "Resume upload: success | parse: success | language: "+result.language+" | characters: "+result.characterCount;if(result.status==="scanned_pdf_unsupported")return "扫描件暂不支持。请选择带文字层的 PDF，或使用 DOCX。";if(result.status==="too_large")return "简历文件过大，当前本地测试仅支持 8MB 以内文件。";if(result.status==="unsupported")return "暂不支持该简历格式。";return "本地简历解析失败。"}
 function asBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>{const value=String(reader.result||"");const comma=value.indexOf(",");if(comma<0)return reject(new Error("无法读取文件"));resolve(value.slice(comma+1))};reader.onerror=()=>reject(new Error("无法读取文件"));reader.readAsDataURL(file)})}
-document.querySelector('#resume').addEventListener('change',async(e)=>{const f=e.target.files?.[0];if(!f){resumeDiagnostic={upload:"not_read",fileType:"unknown",parse:"not_started",language:"unknown",characters:0};resumeTextInput.value="";document.querySelector("#resumeStatus").textContent="未选择简历。";updateBuildState();return}resumeDiagnostic={upload:"success",fileType:f.type||f.name.split(".").pop()||"unknown",parse:"not_started",language:"unknown",characters:0};resumeTextInput.value="";document.querySelector("#resumeStatus").textContent="正在本机解析简历…";updateBuildState();try{const r=await fetch("/api/resume-text",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fileName:f.name,fileType:f.type,dataBase64:await asBase64(f)})});const result=await r.json();if(!r.ok)throw new Error(result.error||"解析失败");resumeDiagnostic={upload:"success",fileType:f.type||f.name.split(".").pop()||"unknown",parse:result.status==="success"?"success":"fail",language:result.language||"unknown",characters:Number(result.characterCount)||0};if(result.status==="success")resumeTextInput.value=result.text||"";document.querySelector("#resumeStatus").textContent=resumeStatusText(result)}catch{resumeDiagnostic={...resumeDiagnostic,parse:"fail"};document.querySelector("#resumeStatus").textContent="本地简历解析失败。"}updateBuildState()});
+document.querySelector('#resume').addEventListener('change',async(e)=>{const f=e.target.files?.[0];if(!f){resumeDiagnostic={upload:"not_read",fileType:"unknown",parse:"not_started",language:"unknown",characters:0};resumeTextInput.value="";document.querySelector("#resumeStatus").textContent="未选择简历。";updateBuildState();return}resumeDiagnostic={upload:"success",fileType:f.type||f.name.split(".").pop()||"unknown",parse:"not_started",language:"unknown",characters:0};resumeTextInput.value="";document.querySelector("#resumeStatus").textContent="正在本机解析简历…";updateBuildState();try{const r=await fetch("/api/resume-text",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fileName:f.name,fileType:f.type,dataBase64:await asBase64(f)})});const result=await r.json();if(!r.ok)throw new Error(result.error||"解析失败");stageTimings={...stageTimings,...result.stageTimings};resumeDiagnostic={upload:"success",fileType:f.type||f.name.split(".").pop()||"unknown",parse:result.status==="success"?"success":"fail",language:result.language||"unknown",characters:Number(result.characterCount)||0};if(result.status==="success")resumeTextInput.value=result.text||"";document.querySelector("#resumeStatus").textContent=resumeStatusText(result)}catch{resumeDiagnostic={...resumeDiagnostic,parse:"fail"};document.querySelector("#resumeStatus").textContent="本地简历解析失败。"}updateBuildState()});
 interview.addEventListener("input",updateBuildState);interview.addEventListener("change",updateBuildState);updateBuildState();
 function answers(){const out={};for(const q of questions){out[q.questionId]={raw:interview.elements['raw:'+q.questionId].value};for(const [name] of (extras[q.questionId]||[]))out[q.questionId][name]=interview.elements[name+':'+q.questionId].value}return out}
-document.querySelector('#build').addEventListener('click',async()=>{if(resumeDiagnostic.parse!=="success"){profileStatus.className='status error';profileStatus.textContent='请先完成本机简历解析。';return}if(!interview.reportValidity())return;profileStatus.className='status';profileStatus.textContent='正在生成已确认 Profile 与职业摘要…';try{const r=await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answers:answers(),resumeText:resumeTextInput.value})});const data=await r.json();if(!r.ok)throw new Error(data.error||'生成失败');profile=data.profile;intelligence=data.intelligence;searchStrategy=data.searchStrategy;renderFounderReview({profile,intelligence,searchStrategy,intelligenceRun:data.intelligenceRun});reviewStep.classList.remove('hidden');const directions=(searchStrategy?.searches||[]).map((item)=>item.kind+': '+item.jobName).join(' | ');const aiSource=qwenCredentialAvailable?(data.intelligenceRun?.usedFallback?'local mock fallback':data.intelligenceRun?.analyzer||'local mock'):'Qwen credential missing';profileStatus.className='status success';profileStatus.textContent='Confirmed Profile 已生成。\\nAI source: '+aiSource+'\\nCareer thesis: '+(intelligence?.careerThesis?.text||'—')+'\\nSearch directions: '+directions;searchStep.classList.remove('hidden')}catch(e){profileStatus.className='status error';profileStatus.textContent=e instanceof Error?e.message:'生成失败'}});
+document.querySelector('#build').addEventListener('click',async()=>{if(resumeDiagnostic.parse!=="success"){profileStatus.className='status error';profileStatus.textContent='请先完成本机简历解析。';return}if(!interview.reportValidity())return;profileStatus.className='status';profileStatus.textContent='正在生成已确认 Profile 与职业摘要…';try{const r=await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answers:answers(),resumeText:resumeTextInput.value})});const data=await r.json();if(!r.ok)throw new Error(data.error||'生成失败');stageTimings={...stageTimings,...data.stageTimings};profile=data.profile;intelligence=data.intelligence;searchStrategy=data.searchStrategy;renderFounderReview({profile,intelligence,searchStrategy,intelligenceRun:data.intelligenceRun});reviewStep.classList.remove('hidden');const directions=(searchStrategy?.searches||[]).map((item)=>item.kind+': '+item.jobName).join(' | ');const aiSource=qwenCredentialAvailable?(data.intelligenceRun?.usedFallback?'local mock fallback':data.intelligenceRun?.analyzer||'local mock'):'Qwen credential missing';profileStatus.className='status success';profileStatus.textContent='Confirmed Profile 已生成。\\nAI source: '+aiSource+'\\nCareer thesis: '+(intelligence?.careerThesis?.text||'—')+'\\nSearch directions: '+directions;searchStep.classList.remove('hidden')}catch(e){profileStatus.className='status error';profileStatus.textContent=e instanceof Error?e.message:'生成失败'}});
 const labels=[['location','Location'],['salary','Salary'],['education','Education'],['workYears','Work Years'],['industry','Industry'],['financingStage','Financing Stage'],['companySize','Company Size']];
 function show(companies){results.replaceChildren();for(const companyCard of companies){const box=document.createElement('article');box.className='card';const company=document.createElement('h2');company.textContent=companyCard.company;box.append(company);for(const card of companyCard.jobs||[]){const role=document.createElement('section');role.className='question';const title=document.createElement('h3');title.textContent=card.jobName||'—';role.append(title);const tag=document.createElement('span');tag.className='tag';tag.textContent=card.recommendation==='apply'?'Apply':'Explore';role.append(tag);for(const [key,label] of labels){const row=document.createElement('p');row.className='meta';row.textContent=label+': '+(card[key]||'—');role.append(row)}if(card.jobDetailUrl){const a=document.createElement('a');a.className='link';a.href=card.jobDetailUrl;a.target='_blank';a.rel='noreferrer';a.textContent='Job Detail URL';role.append(a)}box.append(role)}results.append(box)}}
-document.querySelector("#search").addEventListener("click",async()=>{if(!profile||!searchStrategy)return;results.replaceChildren();searchStatus.className="status";searchStatus.textContent="正在按多个职业方向搜索与筛选真实岗位…";document.querySelector("#search").disabled=true;try{const r=await fetch("/api/recommendations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,searchStrategy,topN:10})});const data=await r.json();if(!r.ok)throw new Error(data.error||"搜索失败");show(data.cards||[]);searchStatus.textContent=flowSummary(data)}catch(e){searchStatus.className="status error";searchStatus.textContent=e instanceof Error?e.message:"搜索失败"}finally{document.querySelector("#search").disabled=false}});
+document.querySelector("#search").addEventListener("click",async()=>{if(!profile||!searchStrategy)return;results.replaceChildren();searchStatus.className="status";searchStatus.textContent="正在按多个职业方向搜索与筛选真实岗位…";document.querySelector("#search").disabled=true;try{const r=await fetch("/api/recommendations",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({profile,searchStrategy,topN:10})});const data=await r.json();if(!r.ok)throw new Error(data.error||"搜索失败");stageTimings={...stageTimings,...data.stageTimings};show(data.cards||[]);searchStatus.textContent=flowSummary(data)+'\\nStage timings (ms): '+JSON.stringify(stageTimings)}catch(e){searchStatus.className="status error";searchStatus.textContent=e instanceof Error?e.message:"搜索失败"}finally{document.querySelector("#search").disabled=false}});
 function flowSummary(data){const f=data.flowDiagnostics;if(!f)return "诊断摘要不可用。";const reasons=f.opportunityAssessment.primaryHiddenReasons.map((item)=>item.reason+":"+item.count).join(", ")||"none";return ["Resume: upload="+resumeDiagnostic.upload+", type="+resumeDiagnostic.fileType+", parse="+resumeDiagnostic.parse+", language="+resumeDiagnostic.language+", characters="+resumeDiagnostic.characters,"Profile: confirmed="+f.profile.confirmed+", direction="+f.profile.careerDirection+", location="+f.profile.location+", capability="+f.profile.capabilityEvidence+", minimum compensation="+f.profile.compensationMinimum,"Search directions: "+f.searchCriteria.jobName+", Location="+(f.searchCriteria.location||"empty")+", count="+f.searchCriteria.directionCount,"Liepin: called="+f.liepinSearch.called+", merged results="+f.liepinSearch.resultCount,"Job mapping: mapped="+f.jobMapping.mappedJobs+", skipped="+f.jobMapping.skippedJobs,"Assessment: total="+f.opportunityAssessment.assessedJobs+", hard filtered="+f.opportunityAssessment.hardFiltered+", shouldShow="+f.opportunityAssessment.shouldShow+", shouldHide="+f.opportunityAssessment.shouldHide,"Primary hidden reasons: "+reasons,"Hard filter breakdown: location="+(f.opportunityAssessment.hardFilterBreakdown?.locationConflict||0)+", minimum compensation="+(f.opportunityAssessment.hardFilterBreakdown?.minimumCompensationConflict||0)+", deal breaker="+(f.opportunityAssessment.hardFilterBreakdown?.dealBreakerConflict||0),"Filtered examples: "+((f.opportunityAssessment.filteredExamples||[]).map((item)=>item.jobLocation+" → "+(item.candidateLocations||[]).join("/")+" → "+(item.filterReasons||[]).join(",")).join(" | ")||"none"),"Ranking: entered="+f.ranking.entered+", Top N="+f.ranking.topN].join("\\n")}
 </script></body></html>`;
 
@@ -117,6 +118,7 @@ function runSearch(args, diagnostics) {
 }
 
 async function recommendations(profile, searchStrategy, topN) {
+  const stageTimings = { liepinSearchesMs: [] };
   const diagnostics = createLiepinSearchDiagnostics({ tokenAvailable: Boolean(process.env.LIEPIN_USER_TOKEN), credentialSource: process.env.LIEPIN_USER_TOKEN ? "environment override" : "liepin-cli config" });
   diagnostics.liepinCliFound = Boolean(LIEPIN_CLI);
   const searches = searchStrategy?.searches;
@@ -124,20 +126,39 @@ async function recommendations(profile, searchStrategy, topN) {
   diagnostics.profileSearchCriteriaGenerated = true;
   if (!diagnostics.liepinCliFound) throw failSearch(diagnostics, "未找到本机 liepin-cli。");
   const cardsByKey = new Map();
-  for (const intent of searches.slice(0, 12)) {
-    const payload = await runSearch(liepinSearchArgs(intent), diagnostics);
-    if (payload?.code !== 0) throw failSearch(diagnostics, "Liepin 未接受本次搜索。");
-    let currentCards;
-    try { currentCards = liepinSearchCards(payload); } catch { throw failSearch(diagnostics, "Liepin 职位列表结构无法读取。"); }
+  const batch = await runControlledLiepinSearches(searches.slice(0, 12), async (intent) => {
+    const localDiagnostics = createLiepinSearchDiagnostics({ tokenAvailable: diagnostics.tokenAvailable, credentialSource: diagnostics.credentialSource });
+    localDiagnostics.profileSearchCriteriaGenerated = true;
+    try {
+      const payload = await runSearch(liepinSearchArgs(intent), localDiagnostics);
+      if (payload?.code !== 0) throw failSearch(localDiagnostics, "Liepin 未接受本次搜索。");
+      let cards;
+      try { cards = liepinSearchCards(payload); } catch { throw failSearch(localDiagnostics, "Liepin 职位列表结构无法读取。"); }
+      return { cards, diagnostics: localDiagnostics };
+    } catch (error) {
+      Object.assign(diagnostics, localDiagnostics);
+      throw error;
+    }
+  });
+  stageTimings.liepinSearchesMs = batch.searchDurationsMs;
+  stageTimings.liepinSearchTotalMs = batch.totalMs;
+  diagnostics.searchConcurrency = batch.concurrency;
+  for (const [index, result] of batch.results.entries()) {
+    const intent = searches[index];
+    const currentCards = result.cards;
     for (const card of currentCards) {
       const key = card.jobId ? "job:" + card.jobId : card.jobDetailUrl ? "url:" + card.jobDetailUrl : "fallback:" + intent.kind + ":" + card.jobName + ":" + card.company;
-      if (!cardsByKey.has(key)) cardsByKey.set(key, { ...card, searchDirection: intent.kind });
+      if (!cardsByKey.has(key)) cardsByKey.set(key, { ...card, searchDirection: intent.kind,
+        ...(intent.kind === 'stretch' && Array.isArray(intent.stretchEvidenceRefs)
+          ? { stretchEvidenceRefs: structuredClone(intent.stretchEvidenceRefs) } : {}) });
     }
   }
+  Object.assign(diagnostics, batch.results.at(-1)?.diagnostics ?? {});
   const cards = [...cardsByKey.values()];
   const byId = new Map();
   const allAssessments = [];
   const showableAssessments = [];
+  const assessmentStarted = stageClock();
   for (const [index, card] of cards.entries()) {
     if (!card.jobName) continue;
     const job = createDiscoveryJob({
@@ -145,24 +166,25 @@ async function recommendations(profile, searchStrategy, topN) {
       source: { kind: "liepin_cli" },
       listing: { title: card.jobName, companyName: card.company, location: card.location, salary: card.salary },
     });
-    const assessed = assessOpportunity({ profile, job });
-    const continuity = assessJobCareerCoherence({ profile, card });
-    const assessment = continuity.status === 'discontinuous' && assessed.hardFilter.outcome === 'pass'
-      ? { ...assessed, shouldShow: false, recommendation: 'low_priority', careerCoherenceReason: continuity.reason }
-      : assessed;
+    const assessment = assessOpportunity({ profile, job, discoveryCard: card });
     byId.set(job.id, { ...card, recommendation: assessment.recommendation, unknowns: assessment.unknowns });
     allAssessments.push(assessment);
     if (assessment.shouldShow) showableAssessments.push(assessment);
   }
+  stageTimings.assessmentMs = elapsedMs(assessmentStarted);
+  const rankingStarted = stageClock();
   const ranked = rankOpportunities(showableAssessments);
+  stageTimings.rankingMs = elapsedMs(rankingStarted);
+  const aggregationStarted = stageClock();
   const companyCards = aggregateRankedCompanies({ ranked, cardsByJobId: byId, topN });
+  stageTimings.companyAggregationMs = elapsedMs(aggregationStarted);
   const candidateLocations = confirmedValues(profile.stated?.hardConstraints?.locations);
   const filteredExamples = allAssessments.filter((assessment) => assessment.hardFilter?.outcome === 'filtered_out').slice(0, 3).map((assessment) => {
     const card = byId.get(assessment.jobId) ?? {};
     return { jobLocation: card.location || '未披露', candidateLocations, filterReasons: assessment.hardFilter.reasons ?? [] };
   });
   return {
-    cards: companyCards, diagnostics,
+    cards: companyCards, diagnostics, stageTimings,
     flowDiagnostics: summarizeFounderFlow({
       profile, intents: searches, liepinResultCount: cards.length, mappedJobs: allAssessments.length,
       skippedJobs: cards.length - allAssessments.length, assessments: allAssessments, ranked, displayedCompanies: companyCards.length, filteredExamples,
@@ -181,9 +203,29 @@ createServer(async (req, res) => {
       const encoded = typeof input.dataBase64 === 'string' ? input.dataBase64 : '';
       if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded) || encoded.length === 0) return json(res, 400, { error: 'Invalid local file payload' });
       const bytes = Buffer.from(encoded, 'base64');
-      return json(res, 200, await extractFounderResumeText({ fileName: input.fileName, mimeType: input.fileType, bytes }));
+      const started = stageClock();
+      const result = await extractFounderResumeText({ fileName: input.fileName, mimeType: input.fileType, bytes });
+      return json(res, 200, { ...result, stageTimings: { resumeParseMs: elapsedMs(started) } });
     }
-    if (req.url === '/api/profile') { const founded = createFounderConfirmedProfile({ answers: input.answers }); const fallbackAnalyzer = createMockCareerIntelligenceAnalyzer(); const qwenRequested = QWEN_CREDENTIAL_AVAILABLE; const analyzer = qwenRequested ? createBailianQwenCareerIntelligenceAnalyzer() : fallbackAnalyzer; const analyzed = await analyzeCareerIntelligence({ analyzer, fallbackAnalyzer: analyzer === fallbackAnalyzer ? null : fallbackAnalyzer, resumeText: input.resumeText, interview: founded.interview, profile: founded.profile }); const intelligence = analyzed.intelligence; return json(res, 200, { ...founded, intelligence, intelligenceRun: { providerRequested: qwenRequested ? 'qwen' : 'mock', qwenCredentialAvailable: qwenRequested, qwenCallSuccess: qwenRequested && !analyzed.usedFallback, analyzer: analyzed.analyzer.id, usedFallback: analyzed.usedFallback, sanitizedFailureReason: analyzed.providerFailure }, searchStrategy: createOpportunitySearchStrategy({ profile: founded.profile, intelligence }) }); }
+    if (req.url === '/api/profile') {
+      const stageTimings = {};
+      const profileStarted = stageClock();
+      const founded = createFounderConfirmedProfile({ answers: input.answers });
+      stageTimings.profileGenerationMs = elapsedMs(profileStarted);
+      const fallbackAnalyzer = createMockCareerIntelligenceAnalyzer();
+      const qwenRequested = QWEN_CREDENTIAL_AVAILABLE;
+      const analyzer = qwenRequested ? createBailianQwenCareerIntelligenceAnalyzer({ onTiming: (stage, milliseconds) => { stageTimings[stage] = milliseconds; } }) : fallbackAnalyzer;
+      const analyzed = await analyzeCareerIntelligence({ analyzer, fallbackAnalyzer: analyzer === fallbackAnalyzer ? null : fallbackAnalyzer,
+        resumeText: input.resumeText, interview: founded.interview, profile: founded.profile, stageTimings });
+      const intelligence = analyzed.intelligence;
+      const strategyStarted = stageClock();
+      const searchStrategy = createOpportunitySearchStrategy({ profile: founded.profile, intelligence, stageTimings });
+      stageTimings.searchStrategyMs = elapsedMs(strategyStarted);
+      return json(res, 200, { ...founded, intelligence, stageTimings,
+        intelligenceRun: { providerRequested: qwenRequested ? 'qwen' : 'mock', qwenCredentialAvailable: qwenRequested,
+          qwenCallSuccess: qwenRequested && !analyzed.usedFallback, analyzer: analyzed.analyzer.id,
+          usedFallback: analyzed.usedFallback, sanitizedFailureReason: analyzed.providerFailure }, searchStrategy });
+    }
     if (req.url !== '/api/recommendations') return json(res, 404, { error: 'Not found' });
     const topN = Math.min(10, Math.max(1, Number(input.topN) || 10));
     return json(res, 200, await recommendations(input.profile, input.searchStrategy, topN));
