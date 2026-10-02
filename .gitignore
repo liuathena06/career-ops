@@ -102,6 +102,7 @@ bun.lock
 # run interrupted mid-way leaves ~650MB of duplicated repo behind, which a
 # reflexive `git add .` would then stage as ~1000 new files.
 .tmp-script-test-*/
+co-gemini-*/
 
 # Report-number reservation sentinels (ephemeral, created by reserve-report-num.mjs)
 reports/*-RESERVED.md
